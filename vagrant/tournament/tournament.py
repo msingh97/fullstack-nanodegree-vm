@@ -4,6 +4,8 @@
 #
 
 import psycopg2
+import datetime
+
 
 
 def connect():
@@ -13,14 +15,33 @@ def connect():
 
 def deleteMatches():
     """Remove all the match records from the database."""
+    connection = connect()
+    cursor = connection.cursor()
+    cursor.execute("delete from standings;")
+    connection.commit()
+    connection.close()
+
 
 
 def deletePlayers():
     """Remove all the player records from the database."""
+    deleteMatches()
+    connection = connect()
+    cursor = connection.cursor()
+    cursor.execute("delete from players;")
+    connection.commit()
+    connection.close()
+
 
 
 def countPlayers():
     """Returns the number of players currently registered."""
+    connection = connect()
+    cursor = connection.cursor()
+    cursor.execute("select count(*) from players;")
+    rows = cursor.fetchall()
+    connection.close()
+    return int(rows[0][0])
 
 
 def registerPlayer(name):
@@ -32,7 +53,11 @@ def registerPlayer(name):
     Args:
       name: the player's full name (need not be unique).
     """
-
+    connection = connect()
+    cursor = connection.cursor()
+    cursor.execute("insert into players values ({0}, %s);".format(countPlayers()), (name,))
+    connection.commit()
+    connection.close()
 
 def playerStandings():
     """Returns a list of the players and their win records, sorted by wins.
@@ -47,7 +72,15 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-
+    connection = connect()
+    cursor = connection.cursor()
+    cursor.execute("select players.id, name, sum(outcome) as wins, count(outcome) as matches from players, standings where players.id = standings.id group by players.id order by wins desc;")
+    rows = cursor.fetchall()
+    if num_matches() == 0:
+        cursor.execute("select id, name, 0 as wins, 0 as matches from players;")
+        rows = cursor.fetchall()
+    connection.close()
+    return rows
 
 def reportMatch(winner, loser):
     """Records the outcome of a single match between two players.
@@ -56,6 +89,12 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
+    connection = connect()
+    cursor = connection.cursor()
+    cursor.execute("insert into standings values ({0}, 0);".format(loser))
+    cursor.execute("insert into standings values ({0}, 1);".format(winner))
+    connection.commit()
+    connection.close()
  
  
 def swissPairings():
@@ -73,5 +112,29 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
+    pairings = []
+    connection = connect()
+    cursor = connection.cursor()
+    standings = playerStandings()
+    i = 0
+    while i < len(standings) - 1:
+        a = standings[i]
+        b = standings[i + 1]
+        pairings.append((a[0], a[1], b[0], b[1]))
+        i += 2
+    connection.close()
+    return pairings
+
+def num_matches():
+    """Returns the number of players currently registered."""
+    connection = connect()
+    cursor = connection.cursor()
+    cursor.execute("select count(*) from standings;")
+    rows = cursor.fetchall()
+    connection.close()
+    return int(rows[0][0])
+
+
+
 
 
